@@ -1,0 +1,218 @@
+# This is for CJV
+
+import numpy as np
+import pandas as pd
+from scipy.stats import rankdata
+
+matrix = np.array([
+    [0.156, 0.146, 0.172, 0.140],
+    [0.177, 0.101, 0.307, 0.104],
+    [0.070, 0.092, 0.058, 0.084],
+    [0.024, 0.126, 0.047, 0.128],
+    [0.121, 0.184, 0.038, 0.206],
+    [0.208, 0.146, 0.152, 0.116],
+    [0.025, 0.126, 0.068, 0.091],
+    [0.219, 0.079, 0.159, 0.131]
+])
+
+sites = ['Site1', 'Site2', 'Site3', 'Site4', 'Site5', 'Site6', 'Site7', 'Site8']
+criteria = ['C1', 'C2', 'C3', 'C4']
+criteria_types = ['max', 'max', 'max', 'max'] 
+weights = np.array([0.16376103, 0.29605439, 0.46393757, 0.076247]) 
+
+# NORMALIZATION FUNCTION
+def vector_normalize(matrix):
+    norm_matrix = np.zeros_like(matrix, dtype=float)
+    for j in range(matrix.shape[1]):
+        col = matrix[:, j]
+        norm = np.sqrt(np.sum(col ** 2))
+        norm_matrix[:, j] = col / norm if norm != 0 else col
+    return norm_matrix
+
+# MULTIMOORA METHOD
+def multimoora(matrix, weights, criteria_types, sites, criteria):
+    n, m = matrix.shape
+
+    # 1. Ratio System (vector normalization, then weighted sum)
+    norm_matrix = vector_normalize(matrix)
+    for j in range(m):
+        if criteria_types[j] == 'min':
+            norm_matrix[:, j] = -norm_matrix[:, j]
+    ratio_scores = np.dot(norm_matrix, weights)
+
+    # 2. Reference Point Approach (use the same normalization)
+    ref_point = np.max(norm_matrix, axis=0)
+    # For cost criteria, reference point is min (but we already multiplied by -1)
+    ref_distances = np.max(np.abs(norm_matrix - ref_point), axis=1)
+
+    # 3. Full Multiplicative Form
+    mult_form = np.ones(n)
+    for i in range(n):
+        prod = 1.0
+        for j in range(m):
+            val = matrix[i, j]
+            if criteria_types[j] == 'max':
+                prod *= val ** weights[j]
+            else:  # 'min'
+                # Avoid division by zero
+                prod *= (1.0 / val) ** weights[j] if val != 0 else 0
+        mult_form[i] = prod
+
+    # Rankings
+    ratio_rank = rankdata(-ratio_scores, method='min')
+    ref_rank = rankdata(ref_distances, method='min')
+    mult_rank = rankdata(-mult_form, method='min')
+
+    # Aggregate (Borda count: sum of ranks, lower is better)
+    total_rank = ratio_rank + ref_rank + mult_rank
+
+    df = pd.DataFrame({
+        'Ratio Score': ratio_scores,
+        'Ratio Rank': ratio_rank,
+        'Reference Distance': ref_distances,
+        'Reference Rank': ref_rank,
+        'Multiplicative Score': mult_form,
+        'Multiplicative Rank': mult_rank,
+        'Total Rank': total_rank,
+        'Final Rank': rankdata(total_rank, method='min')
+    }, index=sites).sort_values('Final Rank')
+
+    return df
+
+# RUN MULTIMOORA
+result_df = multimoora(matrix, weights, criteria_types, sites, criteria)
+print(result_df)
+
+
+
+# OUTPUT:
+
+       Ratio Score  Ratio Rank  Reference Distance  Reference Rank  \
+Site2     0.506475           1            0.277414               1   
+Site1     0.395985           2            0.314841               2   
+Site6     0.390167           3            0.361484               4   
+Site8     0.350891           4            0.345159               3   
+Site7     0.204674           6            0.557385               5   
+Site5     0.281519           5            0.627350               8   
+Site3     0.182816           8            0.580707               6   
+Site4     0.189226           7            0.606360               7   
+
+       Multiplicative Score  Multiplicative Rank  Total Rank  Final Rank  
+Site2              0.185861                    1           3           1  
+Site1              0.158744                    2           6           2  
+Site6              0.154890                    3          10           3  
+Site8              0.134221                    4          11           4  
+Site7              0.070842                    6          17           5  
+Site5              0.083356                    5          18           6  
+Site3              0.070532                    7          21           7  
+Site4              0.060851                    8          22           8  
+
+
+
+# This is for Freight
+
+import numpy as np
+import pandas as pd
+from scipy.stats import rankdata
+
+matrix = np.array([
+    [0.089, 0.106, 0.110, 0.140],
+    [0.172, 0.099, 0.291, 0.104],
+    [0.206, 0.095, 0.072, 0.084],
+    [0.011, 0.132, 0.061, 0.128],
+    [0.128, 0.243, 0.052, 0.206],
+    [0.178, 0.120, 0.178, 0.116],
+    [0.000, 0.132, 0.073, 0.091],
+    [0.217, 0.074, 0.163, 0.131]
+])
+
+sites = ['Site1', 'Site2', 'Site3', 'Site4', 'Site5', 'Site6', 'Site7', 'Site8']
+criteria = ['C1', 'C2', 'C3', 'C4']
+criteria_types = ['max', 'max', 'max', 'max'] 
+weights = np.array([0.16376103, 0.29605439, 0.46393757, 0.076247]) 
+
+# NORMALIZATION FUNCTION
+def vector_normalize(matrix):
+    norm_matrix = np.zeros_like(matrix, dtype=float)
+    for j in range(matrix.shape[1]):
+        col = matrix[:, j]
+        norm = np.sqrt(np.sum(col ** 2))
+        norm_matrix[:, j] = col / norm if norm != 0 else col
+    return norm_matrix
+
+# MULTIMOORA METHOD
+def multimoora(matrix, weights, criteria_types, sites, criteria):
+    n, m = matrix.shape
+
+    # 1. Ratio System (vector normalization, then weighted sum)
+    norm_matrix = vector_normalize(matrix)
+    for j in range(m):
+        if criteria_types[j] == 'min':
+            norm_matrix[:, j] = -norm_matrix[:, j]
+    ratio_scores = np.dot(norm_matrix, weights)
+
+    # 2. Reference Point Approach (use the same normalization)
+    ref_point = np.max(norm_matrix, axis=0)
+    # For cost criteria, reference point is min (but we already multiplied by -1)
+    ref_distances = np.max(np.abs(norm_matrix - ref_point), axis=1)
+
+    # 3. Full Multiplicative Form
+    mult_form = np.ones(n)
+    for i in range(n):
+        prod = 1.0
+        for j in range(m):
+            val = matrix[i, j]
+            if criteria_types[j] == 'max':
+                prod *= val ** weights[j]
+            else:  # 'min'
+                # Avoid division by zero
+                prod *= (1.0 / val) ** weights[j] if val != 0 else 0
+        mult_form[i] = prod
+
+    # Rankings
+    ratio_rank = rankdata(-ratio_scores, method='min')
+    ref_rank = rankdata(ref_distances, method='min')
+    mult_rank = rankdata(-mult_form, method='min')
+
+    # Aggregate (Borda count: sum of ranks, lower is better)
+    total_rank = ratio_rank + ref_rank + mult_rank
+
+    df = pd.DataFrame({
+        'Ratio Score': ratio_scores,
+        'Ratio Rank': ratio_rank,
+        'Reference Distance': ref_distances,
+        'Reference Rank': ref_rank,
+        'Multiplicative Score': mult_form,
+        'Multiplicative Rank': mult_rank,
+        'Total Rank': total_rank,
+        'Final Rank': rankdata(total_rank, method='min')
+    }, index=sites).sort_values('Final Rank')
+
+    return df
+
+# RUN MULTIMOORA
+result_df = multimoora(matrix, weights, criteria_types, sites, criteria)
+print(result_df)
+
+
+# OUTPUT:
+
+       Ratio Score  Ratio Rank  Reference Distance  Reference Rank  \
+Site2     0.491692           1            0.379691               2   
+Site6     0.386503           2            0.324319               1   
+Site8     0.352181           3            0.445609               4   
+Site1     0.269658           5            0.436465               3   
+Site5     0.340660           4            0.576327               8   
+Site3     0.252719           6            0.528099               6   
+Site7     0.203581           7            0.525687               5   
+Site4     0.202132           8            0.554624               7   
+
+       Multiplicative Score  Multiplicative Rank  Total Rank  Final Rank  
+Site2              0.179388                    1           4           1  
+Site6              0.153301                    2           5           2  
+Site8              0.132974                    3          10           3  
+Site1              0.107041                    4          12           4  
+Site5              0.105655                    5          17           5  
+Site3              0.093938                    6          18           6  
+Site7              0.000000                    8          20           7  
+Site4              0.061277                    7          22           8  

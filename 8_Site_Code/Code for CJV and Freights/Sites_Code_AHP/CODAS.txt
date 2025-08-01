@@ -1,0 +1,177 @@
+# This is for CJV
+
+import numpy as np
+import pandas as pd
+from scipy.stats import rankdata
+
+matrix = np.array([
+    [0.156, 0.146, 0.172, 0.140],
+    [0.177, 0.101, 0.307, 0.104],
+    [0.070, 0.092, 0.058, 0.084],
+    [0.024, 0.126, 0.047, 0.128],
+    [0.121, 0.184, 0.038, 0.206],
+    [0.208, 0.146, 0.152, 0.116],
+    [0.025, 0.126, 0.068, 0.091],
+    [0.219, 0.079, 0.159, 0.131]
+])
+
+sites = ['Site1', 'Site2', 'Site3', 'Site4', 'Site5', 'Site6', 'Site7', 'Site8']
+criteria = ['C1', 'C2', 'C3', 'C4']
+criteria_types = ['max', 'max', 'max', 'max']
+weights = np.array([0.16376103, 0.29605439, 0.46393757, 0.076247])
+
+# NORMALIZATION FUNCTION (min-max normalization)
+def normalize_matrix(matrix, criteria_types):
+    norm_matrix = np.zeros_like(matrix, dtype=float)
+    for j in range(matrix.shape[1]):
+        col = matrix[:, j]
+        if criteria_types[j] == 'max':
+            norm_matrix[:, j] = (col - np.min(col)) / (np.max(col) - np.min(col))
+        else:  # 'min'
+            norm_matrix[:, j] = (np.max(col) - col) / (np.max(col) - np.min(col))
+    return norm_matrix
+
+# CODAS METHOD
+def codas(matrix, weights, criteria_types, sites, criteria, tau=0.02):
+    norm_matrix = normalize_matrix(matrix, criteria_types)
+    weighted_matrix = norm_matrix * weights
+
+    # Negative-ideal solution (worst for each criterion)
+    neg_ideal = np.min(weighted_matrix, axis=0)
+
+    # Euclidean and Taxicab distances from negative-ideal
+    euclidean = np.sqrt(((weighted_matrix - neg_ideal) ** 2).sum(axis=1))
+    taxicab = np.abs(weighted_matrix - neg_ideal).sum(axis=1)
+
+    # Assessment score
+    # If difference in Euclidean distance between two alternatives < tau, use Taxicab distance as tie-breaker
+    scores = np.zeros(len(sites))
+    for i in range(len(sites)):
+        count = 0
+        for j in range(len(sites)):
+            if i == j:
+                continue
+            diff = euclidean[i] - euclidean[j]
+            if diff > tau:
+                count += 1
+            elif abs(diff) <= tau:
+                if taxicab[i] > taxicab[j]:
+                    count += 1
+        scores[i] = count
+
+    # Alternatively, for ranking, you can use the Euclidean distance directly (higher is better)
+    df = pd.DataFrame({
+        'Euclidean': euclidean,
+        'Taxicab': taxicab,
+        'CODAS Score': euclidean,  # For simple ranking, use Euclidean distance
+        'Rank': rankdata(-euclidean, method='min')
+    }, index=sites).sort_values('Rank')
+
+    return df
+
+result_df = codas(matrix, weights, criteria_types, sites, criteria)
+print(result_df)
+
+
+# OUTPUT:
+
+       Euclidean   Taxicab  CODAS Score  Rank
+Site2   0.485543  0.666957     0.485543     1
+Site1   0.320329  0.565870     0.320329     2
+Site5   0.316382  0.453762     0.316382     3
+Site6   0.314040  0.560046     0.314040     4
+Site8   0.266890  0.401821     0.266890     5
+Site7   0.142332  0.189474     0.142332     6
+Site4   0.136230  0.175541     0.136230     7
+Site3   0.063448  0.109779     0.063448     8
+
+
+
+
+# This is for Freight
+
+import numpy as np
+import pandas as pd
+from scipy.stats import rankdata
+
+matrix = np.array([
+    [0.089, 0.106, 0.110, 0.140],
+    [0.172, 0.099, 0.291, 0.104],
+    [0.206, 0.095, 0.072, 0.084],
+    [0.011, 0.132, 0.061, 0.128],
+    [0.128, 0.243, 0.052, 0.206],
+    [0.178, 0.120, 0.178, 0.116],
+    [0.000, 0.132, 0.073, 0.091],
+    [0.217, 0.074, 0.163, 0.131]
+])
+
+sites = ['Site1', 'Site2', 'Site3', 'Site4', 'Site5', 'Site6', 'Site7', 'Site8']
+criteria = ['C1', 'C2', 'C3', 'C4']
+criteria_types = ['max', 'max', 'max', 'max']
+weights = np.array([0.16376103, 0.29605439, 0.46393757, 0.076247])
+
+# NORMALIZATION FUNCTION (min-max normalization)
+def normalize_matrix(matrix, criteria_types):
+    norm_matrix = np.zeros_like(matrix, dtype=float)
+    for j in range(matrix.shape[1]):
+        col = matrix[:, j]
+        if criteria_types[j] == 'max':
+            norm_matrix[:, j] = (col - np.min(col)) / (np.max(col) - np.min(col))
+        else:  # 'min'
+            norm_matrix[:, j] = (np.max(col) - col) / (np.max(col) - np.min(col))
+    return norm_matrix
+
+# CODAS METHOD
+def codas(matrix, weights, criteria_types, sites, criteria, tau=0.02):
+    norm_matrix = normalize_matrix(matrix, criteria_types)
+    weighted_matrix = norm_matrix * weights
+
+    # Negative-ideal solution (worst for each criterion)
+    neg_ideal = np.min(weighted_matrix, axis=0)
+
+    # Euclidean and Taxicab distances from negative-ideal
+    euclidean = np.sqrt(((weighted_matrix - neg_ideal) ** 2).sum(axis=1))
+    taxicab = np.abs(weighted_matrix - neg_ideal).sum(axis=1)
+
+    # Assessment score
+    # If difference in Euclidean distance between two alternatives < tau, use Taxicab distance as tie-breaker
+    scores = np.zeros(len(sites))
+    for i in range(len(sites)):
+        count = 0
+        for j in range(len(sites)):
+            if i == j:
+                continue
+            diff = euclidean[i] - euclidean[j]
+            if diff > tau:
+                count += 1
+            elif abs(diff) <= tau:
+                if taxicab[i] > taxicab[j]:
+                    count += 1
+        scores[i] = count
+
+    # Alternatively, for ranking, you can use the Euclidean distance directly (higher is better)
+    df = pd.DataFrame({
+        'Euclidean': euclidean,
+        'Taxicab': taxicab,
+        'CODAS Score': euclidean,  # For simple ranking, use Euclidean distance
+        'Rank': rankdata(-euclidean, method='min')
+    }, index=sites).sort_values('Rank')
+
+    return df
+
+result_df = codas(matrix, weights, criteria_types, sites, criteria)
+print(result_df)
+
+
+
+# OUTPUT:
+
+       Euclidean   Taxicab  CODAS Score  Rank
+Site2   0.483902  0.650033     0.483902     1
+Site5   0.320613  0.468898     0.320613     2
+Site6   0.291136  0.479498     0.291136     3
+Site8   0.272227  0.408604     0.272227     4
+Site3   0.164403  0.231071     0.164403     5
+Site1   0.146814  0.270808     0.146814     6
+Site7   0.109564  0.146744     0.109564     7
+Site4   0.107022  0.154875     0.107022     8

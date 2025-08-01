@@ -1,0 +1,145 @@
+# This is for CJV
+
+import numpy as np
+import pandas as pd
+from scipy.stats import rankdata
+
+matrix = np.array([
+    [0.156, 0.146, 0.172, 0.140],
+    [0.177, 0.101, 0.307, 0.104],
+    [0.070, 0.092, 0.058, 0.084],
+    [0.024, 0.126, 0.047, 0.128],
+    [0.121, 0.184, 0.038, 0.206],
+    [0.208, 0.146, 0.152, 0.116],
+    [0.025, 0.126, 0.068, 0.091],
+    [0.219, 0.079, 0.159, 0.131]
+])
+
+sites = ['Site1', 'Site2', 'Site3', 'Site4', 'Site5', 'Site6', 'Site7', 'Site8']
+criteria = ['C1', 'C2', 'C3', 'C4']
+criteria_types = ['max', 'max', 'max', 'max'] 
+weights = np.array([0.16376103, 0.29605439, 0.46393757, 0.076247])
+
+# NORMALIZATION FUNCTION (min-max normalization)
+def normalize_matrix(matrix, criteria_types):
+    norm_matrix = np.zeros_like(matrix, dtype=float)
+    for j in range(matrix.shape[1]):
+        col = matrix[:, j]
+        if criteria_types[j] == 'max':
+            norm_matrix[:, j] = (col - np.min(col)) / (np.max(col) - np.min(col))
+        else:  # 'min'
+            norm_matrix[:, j] = (np.max(col) - col) / (np.max(col) - np.min(col))
+    return norm_matrix
+
+# MACROS METHOD
+def macros(matrix, weights, criteria_types, sites, criteria):
+    norm_matrix = normalize_matrix(matrix, criteria_types)
+    weighted_matrix = norm_matrix * weights
+
+    # Border Approximation Area: For each criterion, it's the mean of the weighted normalized values
+    border_area = weighted_matrix.mean(axis=0)
+
+    # Calculate the distance of each alternative from the border approximation area (Euclidean)
+    distances = np.sqrt(((weighted_matrix - border_area) ** 2).sum(axis=1))
+
+    # The closer to the border area (smaller distance), the better
+    ranks = rankdata(distances, method='min')
+
+    df = pd.DataFrame({
+        'MACROS Distance': distances,
+        'Rank': ranks
+    }, index=sites).sort_values('Rank')
+
+    return df
+
+# RUN MACROS
+result_df = macros(matrix, weights, criteria_types, sites, criteria)
+print(result_df)
+
+
+# OUTPUT:
+
+       MACROS Distance  Rank
+Site6         0.102686     1
+Site1         0.103958     2
+Site7         0.131220     3
+Site3         0.157639     4
+Site4         0.159251     5
+Site8         0.162730     6
+Site5         0.229840     7
+Site2         0.324115     8
+
+
+
+
+# This is for Freight
+
+import numpy as np
+import pandas as pd
+from scipy.stats import rankdata
+
+matrix = np.array([
+    [0.089, 0.106, 0.110, 0.140],
+    [0.172, 0.099, 0.291, 0.104],
+    [0.206, 0.095, 0.072, 0.084],
+    [0.011, 0.132, 0.061, 0.128],
+    [0.128, 0.243, 0.052, 0.206],
+    [0.178, 0.120, 0.178, 0.116],
+    [0.000, 0.132, 0.073, 0.091],
+    [0.217, 0.074, 0.163, 0.131]
+])
+
+sites = ['Site1', 'Site2', 'Site3', 'Site4', 'Site5', 'Site6', 'Site7', 'Site8']
+criteria = ['C1', 'C2', 'C3', 'C4']
+criteria_types = ['max', 'max', 'max', 'max'] 
+weights = np.array([0.16376103, 0.29605439, 0.46393757, 0.076247])
+
+# NORMALIZATION FUNCTION (min-max normalization)
+def normalize_matrix(matrix, criteria_types):
+    norm_matrix = np.zeros_like(matrix, dtype=float)
+    for j in range(matrix.shape[1]):
+        col = matrix[:, j]
+        if criteria_types[j] == 'max':
+            norm_matrix[:, j] = (col - np.min(col)) / (np.max(col) - np.min(col))
+        else:  # 'min'
+            norm_matrix[:, j] = (np.max(col) - col) / (np.max(col) - np.min(col))
+    return norm_matrix
+
+# MACROS METHOD
+def macros(matrix, weights, criteria_types, sites, criteria):
+    norm_matrix = normalize_matrix(matrix, criteria_types)
+    weighted_matrix = norm_matrix * weights
+
+    # Border Approximation Area: For each criterion, it's the mean of the weighted normalized values
+    border_area = weighted_matrix.mean(axis=0)
+
+    # Calculate the distance of each alternative from the border approximation area (Euclidean)
+    distances = np.sqrt(((weighted_matrix - border_area) ** 2).sum(axis=1))
+
+    # The closer to the border area (smaller distance), the better
+    ranks = rankdata(distances, method='min')
+
+    df = pd.DataFrame({
+        'MACROS Distance': distances,
+        'Rank': ranks
+    }, index=sites).sort_values('Rank')
+
+    return df
+
+# RUN MACROS
+result_df = macros(matrix, weights, criteria_types, sites, criteria)
+print(result_df)
+
+
+
+# OUTPUT:
+
+       MACROS Distance  Rank
+Site1         0.052928     1
+Site6         0.110856     2
+Site3         0.133234     3
+Site8         0.135217     4
+Site7         0.140364     5
+Site4         0.151659     6
+Site5         0.255514     7
+Site2         0.327646     8

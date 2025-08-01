@@ -1,0 +1,192 @@
+# This is for CJV
+
+import numpy as np
+import pandas as pd
+
+matrix = np.array([
+    [0.156, 0.146, 0.172, 0.140],
+    [0.177, 0.101, 0.307, 0.104],
+    [0.070, 0.092, 0.058, 0.084],
+    [0.024, 0.126, 0.047, 0.128],
+    [0.121, 0.184, 0.038, 0.206],
+    [0.208, 0.146, 0.152, 0.116],
+    [0.025, 0.126, 0.068, 0.091],
+    [0.219, 0.079, 0.159, 0.131]
+])
+
+criteria = ['C1', 'C2', 'C3', 'C4']
+sites = ['Site1', 'Site2', 'Site3', 'Site4', 'Site5', 'Site6', 'Site7', 'Site8']
+criteria_types = ['max', 'max', 'max', 'max']
+weights = np.array([0.16376103, 0.29605439, 0.46393757, 0.076247])
+
+# V-shape preference thresholds (can be tuned)
+p_list = [2.998, 1.441, 0.783, 3.957]
+
+def normalize_matrix(matrix, criteria_types):
+    norm_matrix = np.zeros_like(matrix, dtype=float)
+    for j in range(matrix.shape[1]):
+        col = matrix[:, j]
+        if criteria_types[j] == 'max':
+            norm_matrix[:, j] = (col - np.min(col)) / (np.max(col) - np.min(col))
+        else:  # 'min'
+            norm_matrix[:, j] = (np.max(col) - col) / (np.max(col) - np.min(col))
+    return norm_matrix
+
+def vshape_preference(d, p):
+    return np.clip(d / p, 0, 1)
+
+def calculate_preference_matrix(norm_matrix, criteria_types, weights, p_list):
+    n = norm_matrix.shape[0]
+    m = norm_matrix.shape[1]
+    preference_matrix = np.zeros((n, n))
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                continue
+            pref_sum = 0
+            for k in range(m):
+                if criteria_types[k] == 'max':
+                    diff = norm_matrix[i, k] - norm_matrix[j, k]
+                else:  # 'min'
+                    diff = norm_matrix[j, k] - norm_matrix[i, k]
+                pref = vshape_preference(diff, p_list[k])
+                pref_sum += weights[k] * pref
+            preference_matrix[i, j] = pref_sum
+    return preference_matrix
+
+def calculate_flows(preference_matrix):
+    n = preference_matrix.shape[0]
+    phi_plus = preference_matrix.sum(axis=1) / (n - 1)
+    phi_minus = preference_matrix.sum(axis=0) / (n - 1)
+    net_flows = phi_plus - phi_minus
+    return phi_plus, phi_minus, net_flows
+
+def promethee_ii(matrix, criteria_types, weights, p_list, sites, criteria):
+    norm_matrix = normalize_matrix(matrix, criteria_types)
+    preference_matrix = calculate_preference_matrix(norm_matrix, criteria_types, weights, p_list)
+    phi_plus, phi_minus, net_flows = calculate_flows(preference_matrix)
+    
+    # Prepare results DataFrame
+    df = pd.DataFrame(matrix, columns=criteria, index=sites)
+    df['Leaving Flow'] = phi_plus
+    df['Entering Flow'] = phi_minus
+    df['Net Flow'] = net_flows
+    df['Rank'] = df['Net Flow'].rank(ascending=False, method='min').astype(int)
+    df = df.sort_values('Rank')
+    return df
+
+# Run PROMETHEE II
+result_df = promethee_ii(matrix, criteria_types, weights, p_list, sites, criteria)
+print(result_df)
+
+
+
+# OUTPUT:
+
+          C1     C2     C3     C4  Leaving Flow  Entering Flow  Net Flow  Rank
+Site2  0.177  0.101  0.307  0.104      0.431908       0.069790  0.362118     1
+Site1  0.156  0.146  0.172  0.140      0.237624       0.060033  0.177591     2
+Site6  0.208  0.146  0.152  0.116      0.211072       0.071512  0.139560     3
+Site8  0.219  0.079  0.159  0.131      0.169006       0.155421  0.013585     4
+Site5  0.121  0.184  0.038  0.206      0.156321       0.211998 -0.055677     5
+Site7  0.025  0.126  0.068  0.091      0.049022       0.219810 -0.170788     6
+Site4  0.024  0.126  0.047  0.128      0.035101       0.245787 -0.210685     7
+Site3  0.070  0.092  0.058  0.084      0.017030       0.272733 -0.255703     8
+
+
+
+
+# This is for Freight
+
+import numpy as np
+import pandas as pd
+
+matrix = np.array([
+    [0.089, 0.106, 0.110, 0.140],
+    [0.172, 0.099, 0.291, 0.104],
+    [0.206, 0.095, 0.072, 0.084],
+    [0.011, 0.132, 0.061, 0.128],
+    [0.128, 0.243, 0.052, 0.206],
+    [0.178, 0.120, 0.178, 0.116],
+    [0.000, 0.132, 0.073, 0.091],
+    [0.217, 0.074, 0.163, 0.131]
+])
+
+criteria = ['C1', 'C2', 'C3', 'C4']
+sites = ['Site1', 'Site2', 'Site3', 'Site4', 'Site5', 'Site6', 'Site7', 'Site8']
+criteria_types = ['max', 'max', 'max', 'max']
+weights = np.array([0.16376103, 0.29605439, 0.46393757, 0.076247])
+
+# V-shape preference thresholds (can be tuned)
+p_list = [2.998, 1.441, 0.783, 3.957]
+
+def normalize_matrix(matrix, criteria_types):
+    norm_matrix = np.zeros_like(matrix, dtype=float)
+    for j in range(matrix.shape[1]):
+        col = matrix[:, j]
+        if criteria_types[j] == 'max':
+            norm_matrix[:, j] = (col - np.min(col)) / (np.max(col) - np.min(col))
+        else:  # 'min'
+            norm_matrix[:, j] = (np.max(col) - col) / (np.max(col) - np.min(col))
+    return norm_matrix
+
+def vshape_preference(d, p):
+    return np.clip(d / p, 0, 1)
+
+def calculate_preference_matrix(norm_matrix, criteria_types, weights, p_list):
+    n = norm_matrix.shape[0]
+    m = norm_matrix.shape[1]
+    preference_matrix = np.zeros((n, n))
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                continue
+            pref_sum = 0
+            for k in range(m):
+                if criteria_types[k] == 'max':
+                    diff = norm_matrix[i, k] - norm_matrix[j, k]
+                else:  # 'min'
+                    diff = norm_matrix[j, k] - norm_matrix[i, k]
+                pref = vshape_preference(diff, p_list[k])
+                pref_sum += weights[k] * pref
+            preference_matrix[i, j] = pref_sum
+    return preference_matrix
+
+def calculate_flows(preference_matrix):
+    n = preference_matrix.shape[0]
+    phi_plus = preference_matrix.sum(axis=1) / (n - 1)
+    phi_minus = preference_matrix.sum(axis=0) / (n - 1)
+    net_flows = phi_plus - phi_minus
+    return phi_plus, phi_minus, net_flows
+
+def promethee_ii(matrix, criteria_types, weights, p_list, sites, criteria):
+    norm_matrix = normalize_matrix(matrix, criteria_types)
+    preference_matrix = calculate_preference_matrix(norm_matrix, criteria_types, weights, p_list)
+    phi_plus, phi_minus, net_flows = calculate_flows(preference_matrix)
+    
+    # Prepare results DataFrame
+    df = pd.DataFrame(matrix, columns=criteria, index=sites)
+    df['Leaving Flow'] = phi_plus
+    df['Entering Flow'] = phi_minus
+    df['Net Flow'] = net_flows
+    df['Rank'] = df['Net Flow'].rank(ascending=False, method='min').astype(int)
+    df = df.sort_values('Rank')
+    return df
+
+# Run PROMETHEE II
+result_df = promethee_ii(matrix, criteria_types, weights, p_list, sites, criteria)
+print(result_df)
+
+
+
+# OUTPUT:
+
+          C1     C2     C3     C4  Leaving Flow  Entering Flow  Net Flow  Rank
+Site2  0.172  0.099  0.291  0.104      0.436886       0.048925  0.387961     1
+Site6  0.178  0.120  0.178  0.116      0.227771       0.071140  0.156631     2
+Site8  0.217  0.074  0.163  0.131      0.187719       0.123571  0.064148     3
+Site5  0.128  0.243  0.052  0.206      0.188604       0.197848 -0.009245     4
+Site1  0.089  0.106  0.110  0.140      0.083343       0.160099 -0.076756     5
+Site3  0.206  0.095  0.072  0.084      0.038288       0.203157 -0.164869     6
+Site7  0.000  0.132  0.073  0.091      0.041029       0.210011 -0.168982     7
+Site4  0.011  0.132  0.061  0.128      0.035052       0.223941 -0.188889     8

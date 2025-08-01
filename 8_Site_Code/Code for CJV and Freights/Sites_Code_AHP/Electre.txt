@@ -1,0 +1,373 @@
+# This is for CJV
+
+import numpy as np
+import pandas as pd
+
+# Input matrix
+matrix = np.array([
+    [0.156, 0.146, 0.172, 0.140],
+    [0.177, 0.101, 0.307, 0.104],
+    [0.070, 0.092, 0.058, 0.084],
+    [0.024, 0.126, 0.047, 0.128],
+    [0.121, 0.184, 0.038, 0.206],
+    [0.208, 0.146, 0.152, 0.116],
+    [0.025, 0.126, 0.068, 0.091],
+    [0.219, 0.079, 0.159, 0.131]
+])
+
+criteria = ['C1', 'C2', 'C3', 'C4']
+sites = ['Site1', 'Site2', 'Site3', 'Site4', 'Site5', 'Site6', 'Site7', 'Site8']
+criteria_types = ['max', 'max', 'max', 'max']
+weights = np.array([0.16376103, 0.29605439, 0.46393757, 0.076247])
+
+# Normalize the decision matrix
+def normalize_matrix(matrix, criteria_types):
+    norm_matrix = np.zeros_like(matrix, dtype=float)
+    for j in range(matrix.shape[1]):
+        col = matrix[:, j]
+        if criteria_types[j] == 'max':
+            norm_matrix[:, j] = (col - np.min(col)) / (np.max(col) - np.min(col))
+        else:  # 'min'
+            norm_matrix[:, j] = (np.max(col) - col) / (np.max(col) - np.min(col))
+    return norm_matrix
+
+# ELECTRE I method
+def electre(matrix, criteria_types, weights, sites, criteria, c_thresh=0.6, d_thresh=0.4):
+    n, m = matrix.shape
+    norm_matrix = normalize_matrix(matrix, criteria_types)
+    weighted_matrix = norm_matrix * weights
+
+    # Concordance matrix
+    concordance = np.zeros((n, n))
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                continue
+            mask = weighted_matrix[i] >= weighted_matrix[j]
+            concordance[i, j] = weights[mask].sum()
+
+    # Discordance matrix
+    discordance = np.zeros((n, n))
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                continue
+            diff = np.abs(weighted_matrix[i] - weighted_matrix[j])
+            denom = diff.max() if diff.max() != 0 else 1
+            disc = np.max([
+                (weighted_matrix[j, k] - weighted_matrix[i, k]) / denom
+                if weighted_matrix[i, k] < weighted_matrix[j, k] else 0
+                for k in range(m)
+            ])
+            discordance[i, j] = disc
+
+    # Outranking relation
+    c_bar = c_thresh
+    d_bar = d_thresh
+    outranking = (concordance >= c_bar) & (discordance <= d_bar)
+
+    # Kernel (non-dominated alternatives)
+    kernel = []
+    for i in range(n):
+        if not outranking[:, i].any():
+            kernel.append(sites[i])
+
+    # Concordance dominance count
+    concordance_dominance = outranking.sum(axis=1)
+
+    # Net dominance = Dominance - Dominated
+    net_dominance = outranking.sum(axis=1) - outranking.sum(axis=0)
+
+    # Prepare DataFrame
+    df = pd.DataFrame({
+        'Site': sites,
+        'Concordance Dominance': concordance_dominance,
+        'Net Dominance': net_dominance,
+        'Kernel Member': [site in kernel for site in sites]
+    })
+    df['Rank (Concordance)'] = df['Concordance Dominance'].rank(method='min', ascending=False).astype(int)
+    df['Rank (Net Dominance)'] = df['Net Dominance'].rank(method='min', ascending=False).astype(int)
+    df = df.set_index('Site')
+    df = df.sort_values('Rank (Net Dominance)')
+
+    return df, concordance, discordance, outranking
+
+# Run ELECTRE I
+result_df, concordance, discordance, outranking = electre(matrix, criteria_types, weights, sites, criteria)
+
+# Print results
+print("ELECTRE I Results:")
+print(result_df)
+
+print("\nConcordance Matrix:\n", pd.DataFrame(concordance, index=sites, columns=sites))
+print("\nDiscordance Matrix:\n", pd.DataFrame(discordance, index=sites, columns=sites))
+print("\nOutranking Relation Matrix:\n", pd.DataFrame(outranking, index=sites, columns=sites))
+
+
+
+# OUTPUT:
+
+ELECTRE I Results:
+       Concordance Dominance  Net Dominance  Kernel Member  \
+Site                                                         
+Site1                      4              4           True   
+Site2                      4              4           True   
+Site6                      3              3           True   
+Site5                      0              0           True   
+Site8                      1             -1          False   
+Site7                      1             -2          False   
+Site4                      0             -3          False   
+Site3                      0             -5          False   
+
+       Rank (Concordance)  Rank (Net Dominance)  
+Site                                             
+Site1                   1                     1  
+Site2                   1                     1  
+Site6                   3                     3  
+Site5                   6                     4  
+Site8                   4                     5  
+Site7                   4                     6  
+Site4                   6                     7  
+Site3                   6                     8  
+
+Concordance Matrix:
+           Site1     Site2     Site3     Site4     Site5     Site6     Site7  \
+Site1  0.000000  0.372301  1.000000  1.000000  0.627699  0.836239  1.000000   
+Site2  0.627699  0.000000  1.000000  0.627699  0.627699  0.463938  0.703946   
+Site3  0.000000  0.000000  0.000000  0.627699  0.463938  0.000000  0.163761   
+Site4  0.000000  0.372301  0.372301  0.000000  0.463938  0.076247  0.372301   
+Site5  0.372301  0.372301  0.536062  0.536062  0.000000  0.372301  0.536062   
+Site6  0.459815  0.536062  1.000000  0.923753  0.627699  0.000000  1.000000   
+Site7  0.000000  0.296054  0.836239  0.923753  0.463938  0.000000  0.000000   
+Site8  0.163761  0.240008  0.703946  0.703946  0.627699  0.703946  0.703946   
+
+          Site8  
+Site1  0.836239  
+Site2  0.759992  
+Site3  0.296054  
+Site4  0.296054  
+Site5  0.372301  
+Site6  0.296054  
+Site7  0.296054  
+Site8  0.000000  
+
+Discordance Matrix:
+           Site1  Site2     Site3     Site4     Site5     Site6     Site7  \
+Site1  0.000000    1.0  0.000000  0.000000  0.463611  1.000000  0.000000   
+Site2  0.544946    0.0  0.000000  0.157196  0.504430  0.474631  0.171008   
+Site3  1.000000    1.0  0.000000  1.000000  1.000000  1.000000  1.000000   
+Site4  1.000000    1.0  0.402970  0.000000  1.000000  1.000000  1.000000   
+Site5  1.000000    1.0  0.132974  0.094916  0.000000  1.000000  0.316387   
+Site6  0.789874    1.0  0.000000  0.041414  0.544946  0.000000  0.000000   
+Site7  1.000000    1.0  0.394210  0.638466  1.000000  1.000000  0.000000   
+Site8  1.000000    1.0  0.210425  0.686048  1.000000  1.000000  0.813397   
+
+          Site8  
+Site1  0.280065  
+Site2  0.138184  
+Site3  1.000000  
+Site4  1.000000  
+Site5  0.704890  
+Site6  0.063907  
+Site7  1.000000  
+Site8  0.000000  
+
+Outranking Relation Matrix:
+        Site1  Site2  Site3  Site4  Site5  Site6  Site7  Site8
+Site1  False  False   True   True  False  False   True   True
+Site2  False  False   True   True  False  False   True   True
+Site3  False  False  False  False  False  False  False  False
+Site4  False  False  False  False  False  False  False  False
+Site5  False  False  False  False  False  False  False  False
+Site6  False  False   True   True  False  False   True  False
+Site7  False  False   True  False  False  False  False  False
+Site8  False  False   True  False  False  False  False  False
+
+
+
+
+
+# This is for Freight
+
+import numpy as np
+import pandas as pd
+
+# Input matrix
+matrix = np.array([
+    [0.089, 0.106, 0.110, 0.140],
+    [0.172, 0.099, 0.291, 0.104],
+    [0.206, 0.095, 0.072, 0.084],
+    [0.011, 0.132, 0.061, 0.128],
+    [0.128, 0.243, 0.052, 0.206],
+    [0.178, 0.120, 0.178, 0.116],
+    [0.000, 0.132, 0.073, 0.091],
+    [0.217, 0.074, 0.163, 0.131]
+])
+
+criteria = ['C1', 'C2', 'C3', 'C4']
+sites = ['Site1', 'Site2', 'Site3', 'Site4', 'Site5', 'Site6', 'Site7', 'Site8']
+criteria_types = ['max', 'max', 'max', 'max']
+weights = np.array([0.16376103, 0.29605439, 0.46393757, 0.076247])
+
+# Normalize the decision matrix
+def normalize_matrix(matrix, criteria_types):
+    norm_matrix = np.zeros_like(matrix, dtype=float)
+    for j in range(matrix.shape[1]):
+        col = matrix[:, j]
+        if criteria_types[j] == 'max':
+            norm_matrix[:, j] = (col - np.min(col)) / (np.max(col) - np.min(col))
+        else:  # 'min'
+            norm_matrix[:, j] = (np.max(col) - col) / (np.max(col) - np.min(col))
+    return norm_matrix
+
+# ELECTRE I method
+def electre(matrix, criteria_types, weights, sites, criteria, c_thresh=0.6, d_thresh=0.4):
+    n, m = matrix.shape
+    norm_matrix = normalize_matrix(matrix, criteria_types)
+    weighted_matrix = norm_matrix * weights
+
+    # Concordance matrix
+    concordance = np.zeros((n, n))
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                continue
+            mask = weighted_matrix[i] >= weighted_matrix[j]
+            concordance[i, j] = weights[mask].sum()
+
+    # Discordance matrix
+    discordance = np.zeros((n, n))
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                continue
+            diff = np.abs(weighted_matrix[i] - weighted_matrix[j])
+            denom = diff.max() if diff.max() != 0 else 1
+            disc = np.max([
+                (weighted_matrix[j, k] - weighted_matrix[i, k]) / denom
+                if weighted_matrix[i, k] < weighted_matrix[j, k] else 0
+                for k in range(m)
+            ])
+            discordance[i, j] = disc
+
+    # Outranking relation
+    c_bar = c_thresh
+    d_bar = d_thresh
+    outranking = (concordance >= c_bar) & (discordance <= d_bar)
+
+    # Kernel (non-dominated alternatives)
+    kernel = []
+    for i in range(n):
+        if not outranking[:, i].any():
+            kernel.append(sites[i])
+
+    # Concordance dominance count
+    concordance_dominance = outranking.sum(axis=1)
+
+    # Net dominance = Dominance - Dominated
+    net_dominance = outranking.sum(axis=1) - outranking.sum(axis=0)
+
+    # Prepare DataFrame
+    df = pd.DataFrame({
+        'Site': sites,
+        'Concordance Dominance': concordance_dominance,
+        'Net Dominance': net_dominance,
+        'Kernel Member': [site in kernel for site in sites]
+    })
+    df['Rank (Concordance)'] = df['Concordance Dominance'].rank(method='min', ascending=False).astype(int)
+    df['Rank (Net Dominance)'] = df['Net Dominance'].rank(method='min', ascending=False).astype(int)
+    df = df.set_index('Site')
+    df = df.sort_values('Rank (Net Dominance)')
+
+    return df, concordance, discordance, outranking
+
+# Run ELECTRE I
+result_df, concordance, discordance, outranking = electre(matrix, criteria_types, weights, sites, criteria)
+
+# Print results
+print("ELECTRE I Results:")
+print(result_df)
+
+print("\nConcordance Matrix:\n", pd.DataFrame(concordance, index=sites, columns=sites))
+print("\nDiscordance Matrix:\n", pd.DataFrame(discordance, index=sites, columns=sites))
+print("\nOutranking Relation Matrix:\n", pd.DataFrame(outranking, index=sites, columns=sites))
+
+
+
+# OUTPUT:
+
+ELECTRE I Results:
+       Concordance Dominance  Net Dominance  Kernel Member  \
+Site                                                         
+Site2                      5              5           True   
+Site6                      5              5           True   
+Site5                      0              0           True   
+Site8                      1             -1          False   
+Site1                      0             -2          False   
+Site4                      0             -2          False   
+Site7                      0             -2          False   
+Site3                      0             -3          False   
+
+       Rank (Concordance)  Rank (Net Dominance)  
+Site                                             
+Site2                   1                     1  
+Site6                   1                     1  
+Site5                   4                     3  
+Site8                   3                     4  
+Site1                   4                     5  
+Site4                   4                     5  
+Site7                   4                     5  
+Site3                   4                     8  
+
+Concordance Matrix:
+           Site1     Site2     Site3     Site4     Site5     Site6     Site7  \
+Site1  0.000000  0.372301  0.836239  0.703946  0.463938  0.076247  0.703946   
+Site2  0.627699  0.000000  0.836239  0.627699  0.627699  0.463938  0.703946   
+Site3  0.163761  0.163761  0.000000  0.627699  0.627699  0.163761  0.163761   
+Site4  0.296054  0.372301  0.372301  0.000000  0.463938  0.372301  0.536062   
+Site5  0.536062  0.372301  0.372301  0.536062  0.000000  0.372301  0.536062   
+Site6  0.923753  0.536062  0.836239  0.627699  0.627699  0.000000  0.703946   
+Site7  0.296054  0.296054  0.836239  0.759992  0.463938  0.296054  0.000000   
+Site8  0.627699  0.240008  0.703946  0.703946  0.627699  0.240008  0.703946   
+
+          Site8  
+Site1  0.372301  
+Site2  0.759992  
+Site3  0.296054  
+Site4  0.296054  
+Site5  0.372301  
+Site6  0.759992  
+Site7  0.296054  
+Site8  0.000000  
+
+Discordance Matrix:
+           Site1  Site2     Site3     Site4     Site5     Site6     Site7  \
+Site1  0.000000    1.0  1.000000  0.478851  1.000000  1.000000  0.634154   
+Site2  0.064036    0.0  0.060356  0.129482  0.543736  0.167712  0.136609   
+Site3  0.835427    1.0  0.000000  0.440455  1.000000  1.000000  0.416935   
+Site4  1.000000    1.0  1.000000  0.000000  1.000000  1.000000  1.000000   
+Site5  0.469120    1.0  0.227038  0.089846  0.000000  1.000000  0.209640   
+Site6  0.113633    1.0  0.102693  0.092559  0.880963  0.000000  0.103137   
+Site7  1.000000    1.0  1.000000  0.992709  1.000000  1.000000  0.000000   
+Site8  0.544875    1.0  0.208258  0.513158  1.000000  1.000000  0.581579   
+
+          Site8  
+Site1  1.000000  
+Site2  0.136676  
+Site3  1.000000  
+Site4  1.000000  
+Site5  0.727802  
+Site6  0.365235  
+Site7  1.000000  
+Site8  0.000000  
+
+Outranking Relation Matrix:
+        Site1  Site2  Site3  Site4  Site5  Site6  Site7  Site8
+Site1  False  False  False  False  False  False  False  False
+Site2   True  False   True   True  False  False   True   True
+Site3  False  False  False  False  False  False  False  False
+Site4  False  False  False  False  False  False  False  False
+Site5  False  False  False  False  False  False  False  False
+Site6   True  False   True   True  False  False   True   True
+Site7  False  False  False  False  False  False  False  False
+Site8  False  False   True  False  False  False  False  False
